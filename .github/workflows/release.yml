@@ -27,7 +27,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
       - name: Android SDK
         run: |
+          # GitHub's runner names its own SDK in ANDROID_SDK_ROOT too, and Gradle refuses two: both point at this one.
           echo "ANDROID_HOME=$RUNNER_TOOL_CACHE/android-sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$RUNNER_TOOL_CACHE/android-sdk" >> "$GITHUB_ENV"
           scripts/android-sdk.sh "$RUNNER_TOOL_CACHE/android-sdk"
       - name: Build and sign
         env:
