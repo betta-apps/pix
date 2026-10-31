@@ -130,13 +130,14 @@ class Plex(context: Context) {
         }
     }
 
-    /** A picture from the server, scaled and cropped by Plex to fill [width] by [height]. */
-    fun image(server: Server, path: String, width: Int, height: Int): Bitmap {
+    /** A picture from the server, scaled and cropped by Plex to fill [width] by [height], decoded at 1/[sample] of that. */
+    fun image(server: Server, path: String, width: Int, height: Int, sample: Int = 1): Bitmap {
         val art = URLEncoder.encode(path, "UTF-8")
         val connection = open("${server.uri}/photo/:/transcode?width=$width&height=$height&minSize=1&upscale=1&url=$art", server.token)
         try {
             check(connection.responseCode == 200) { "Plex answered ${connection.responseCode} for a backdrop" }
-            return connection.inputStream.use { BitmapFactory.decodeStream(it) } ?: error("Plex sent a backdrop that isn't an image")
+            val options = BitmapFactory.Options().apply { inSampleSize = sample }
+            return connection.inputStream.use { BitmapFactory.decodeStream(it, null, options) } ?: error("Plex sent a backdrop that isn't an image")
         } finally {
             connection.disconnect()
         }
