@@ -1,13 +1,21 @@
 <p align="center"><img src="docs/banner.png" alt="pix" width="480"></p>
 
-<p align="center"><strong>Your Plex library as a slow, cinematic screensaver for Android TV.</strong></p>
+<p align="center"><strong>A Plex screensaver for Android TV, the NVIDIA Shield and Google TV.</strong><br>Your Plex library as a slow, cinematic screensaver, with a guessing game.</p>
 
-<p align="center"><img src="docs/screensaver.jpg" alt="The screensaver before you sign in: the moon from A Trip to the Moon, with Plex's QR sign-in in the corner" width="860"></p>
+<p align="center"><a href="../../releases/latest"><strong>Download</strong></a> · <a href="https://work.betta.io/apps/pix/">Website</a> · <a href="#install">Install</a> · <a href="#google-tv">Google TV</a></p>
+
+<p align="center"><img src="docs/screensaver.jpg" alt="Pix on a TV: a backdrop from When Marnie Was There, with its year and a line for each word of the title" width="860"></p>
 
 Pix takes the backdrops from the films and shows on your own Plex server and gives them a film look: grain, a
 soft halation round the highlights, a little warmth. Then it pans slowly across them, one film a minute. While each
 one is on screen it plays a small guessing game: halfway through you get the year, and a line under it shows how long
 each word of the title is. Then the title appears.
+
+<table><tr>
+<td><img src="docs/still.jpg" alt="The still: a backdrop from The Long Walk with the film look" width="280"><br><sub>The still</sub></td>
+<td><img src="docs/guess.jpg" alt="The clue: She Said, with its year and a line for each word" width="280"><br><sub>The clue</sub></td>
+<td><img src="docs/title.jpg" alt="The title: When Marnie Was There" width="280"><br><sub>The title</sub></td>
+</tr></table>
 
 ## What it does
 
@@ -77,7 +85,7 @@ To go back, put the value you noted back the same way. Google TV's own is
 
 Open Pix to sign in or out, preview the screensaver and change:
 
-<p align="center"><img src="docs/settings.jpg" alt="Pix's settings: Plex, each film, time to guess, title stays and brightness" width="720"></p>
+<p align="center"><img src="docs/settings.jpg" alt="Pix's own screen: signed in to Plex, each film, time to guess, title stays and brightness, with a film blurred behind" width="720"></p>
 
 | Setting | Choices |
 | --- | --- |
@@ -107,6 +115,7 @@ You need JDK 17 and the Android SDK (Android Studio has both).
 
 ## Credits
 
+- The screenshots show films from a Plex library; their stills belong to the films' owners.
 - The moon: a frame from the hand-coloured print of Georges Méliès's *Le Voyage dans la Lune* (1902), public domain,
   via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Melies_color_Voyage_dans_la_lune.jpg).
 - [Instrument Sans](https://github.com/Instrument/instrument-sans), under the SIL Open Font License.
