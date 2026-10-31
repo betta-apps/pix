@@ -47,14 +47,12 @@ Plex app. Any other button closes it.
 ## Install
 
 1. Download `pix-<version>.apk` from the [latest release](../../releases/latest).
-2. Put it on your TV. Either:
-   - with the [Downloader](https://www.aftvnews.com/downloader/) app: enter the APK's link and allow Downloader to
-     install apps when it asks; or
-   - from a computer, with your TV's developer options and network debugging turned on:
-     ```bash
-     adb connect <your-tv's-ip>
-     adb install pix-<version>.apk
-     ```
+2. Install it on your TV the way you usually sideload apps, or from a computer with your TV's developer options and
+   network debugging turned on:
+   ```bash
+   adb connect <your-tv's-ip>
+   adb install pix-<version>.apk
+   ```
 3. Open **Pix** from your apps and scan the QR code with your phone. Approve it on Plex's page and you're signed in.
 4. Choose Pix as your screensaver. In your TV's **Settings**, go to **Device Preferences → Screen saver → Screen
    saver** and pick **Pix for Plex**. *Set as screensaver* in Pix opens Settings for you.
