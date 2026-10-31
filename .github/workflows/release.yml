@@ -41,7 +41,8 @@ jobs:
           printf '%s' "$KEYSTORE" | base64 -d > "$PIX_RELEASE_STORE"
           version="${GITHUB_REF_NAME#v}"
           grep -q "versionName = \"$version\"" app/build.gradle.kts || { echo "The tag says $version; app/build.gradle.kts doesn't."; exit 1; }
-          ./gradlew testReleaseUnitTest assembleRelease
+          # Unit tests exist for the debug build only; they run the same code.
+          ./gradlew testDebugUnitTest assembleRelease
           cp app/build/outputs/apk/release/app-release.apk "pix-$version.apk"
       - name: Publish
         env:
