@@ -112,13 +112,19 @@ class Plex(context: Context) {
 
     /**
      * The backdrop as Plex stores it (often 4K), not through Plex's resizer, which re-compresses everything at about
-     * JPEG quality 75. The renderer scales it on the GPU as it develops the look.
+     * JPEG quality 75; shrunk here to no wider than [maxWidth], the most the renderer develops it at.
      */
-    fun backdrop(server: Server, movie: Movie): Bitmap {
+    fun backdrop(server: Server, movie: Movie, maxWidth: Int): Bitmap {
         val connection = open("${server.uri}${movie.art}", server.token)
         try {
             check(connection.responseCode == 200) { "Plex answered ${connection.responseCode} for a backdrop" }
-            return connection.inputStream.use { BitmapFactory.decodeStream(it) } ?: error("Plex sent a backdrop that isn't an image")
+            val bytes = connection.inputStream.use { it.readBytes() }
+            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }.also { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, it) }
+            val options = BitmapFactory.Options().apply { inSampleSize = backdropSample(bounds.outWidth, maxWidth) }
+            val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: error("Plex sent a backdrop that isn't an image")
+            val (width, height) = shrunk(decoded.width, decoded.height, maxWidth)
+            if (width == decoded.width) return decoded
+            return Bitmap.createScaledBitmap(decoded, width, height, true).also { decoded.recycle() }
         } finally {
             connection.disconnect()
         }

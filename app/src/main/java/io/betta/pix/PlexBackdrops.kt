@@ -20,7 +20,7 @@ fun Plex.backdrops(cache: BackdropCache): List<Backdrops.Backdrop> {
         // The Plex app (2026.20) ignores plex://server links but opens its page for a watch.plex.tv one.
         lateinit var film: Backdrops.Backdrop
         film = Backdrops.Backdrop(movie.title, movie.year, movie.page) {
-            val bitmap = traced("backdrop fetch") { backdrop(server, movie) }
+            val bitmap = traced("backdrop fetch") { backdrop(server, movie, BAKE_WIDTH) }
             check(!hasBlackBars(bitmap.width, bitmap.height) { x, y -> luminance(bitmap.getPixel(x, y)) }) { "${movie.title} has black bars" }
             traced("backdrop cache") { cache.save(movie.page?.substringAfterLast('/') ?: movie.art, film, bitmap) }
             bitmap
@@ -28,6 +28,20 @@ fun Plex.backdrops(cache: BackdropCache): List<Backdrops.Backdrop> {
         film
     }
 }
+
+/**
+ * The largest power of two a [width]-wide backdrop can be decoded at a fraction of (inSampleSize) and still be at least
+ * [maxWidth] wide, so the decoder does what shrinking it can.
+ */
+fun backdropSample(width: Int, maxWidth: Int): Int {
+    var sample = 1
+    while (width / (sample * 2) >= maxWidth) sample *= 2
+    return sample
+}
+
+/** A [width] by [height] backdrop's size once shrunk to no wider than [maxWidth], keeping its shape. */
+fun shrunk(width: Int, height: Int, maxWidth: Int): Pair<Int, Int> =
+    if (width <= maxWidth) width to height else maxWidth to (height.toLong() * maxWidth / width).toInt()
 
 private fun luminance(pixel: Int) = (Color.red(pixel) * 299 + Color.green(pixel) * 587 + Color.blue(pixel) * 114) / 1000
 

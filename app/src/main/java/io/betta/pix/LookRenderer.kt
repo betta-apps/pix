@@ -15,6 +15,10 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
 
+// How wide a film is developed: as much larger than 1080p as the furthest zoom, so there's still a texel for every
+// screen pixel (BAKE_HEIGHT is its height).
+const val BAKE_WIDTH = 2688
+
 /**
  * Develops each backdrop once into a texture (softness, halation, grain, warmth), then only pans across it, so
  * the grain stays fixed to the still and each frame costs a texture read or two. A new film fades in over the last.
@@ -49,7 +53,9 @@ class LookRenderer : GLSurfaceView.Renderer {
     private var current: Bitmap? = null
     private var bakeProgram = 0
     private var showProgram = 0
+    // The film as decoded, on the GPU only while it's developed; a new look uploads it again from [current].
     private var imageTex = 0
+    private var uploaded = false
     // The film fading in and the one it replaces, which keeps moving underneath until the fade is done.
     private var front = Slot()
     private var back = Slot()
@@ -80,6 +86,7 @@ class LookRenderer : GLSurfaceView.Renderer {
         val ids = IntArray(1)
         glGenTextures(1, ids, 0)
         imageTex = ids[0]
+        uploaded = false
         bakeTimer = 0
         timing = false
         if (glGetString(GL_EXTENSIONS)?.contains("GL_EXT_disjoint_timer_query") == true) {
@@ -124,8 +131,10 @@ class LookRenderer : GLSurfaceView.Renderer {
             front.ready = true
             needsBake = true
         }
-        if (needsBake && current != null) {
+        val film = current
+        if (needsBake && film != null) {
             needsBake = false
+            if (!uploaded) traced("backdrop upload") { upload(film) }
             val timed = bakeTimer != 0 && !timing && Trace.isEnabled()
             if (timed) glBeginQuery(GL_TIME_ELAPSED_EXT, bakeTimer)
             traced("backdrop bake") { bake(front) }
@@ -133,6 +142,7 @@ class LookRenderer : GLSurfaceView.Renderer {
                 glEndQuery(GL_TIME_ELAPSED_EXT)
                 timing = true
             }
+            unload()
         }
         if (timing) readBakeTimer()
         glViewport(0, 0, viewWidth, viewHeight)
@@ -167,11 +177,20 @@ class LookRenderer : GLSurfaceView.Renderer {
         draw(showProgram)
     }
 
+    // Developing a film never shrinks it by more than about a third (from Plex it's no wider than BAKE_WIDTH, a still pushed
+    // over adb under twice 1920), so plain linear filtering reads it well, without mipmaps.
     private fun upload(bitmap: Bitmap) {
         glBindTexture(GL_TEXTURE_2D, imageTex)
         GLUtils.texImage2D(GL_TEXTURE_2D, 0, bitmap, 0)
-        glGenerateMipmap(GL_TEXTURE_2D)
-        clampLinear(GL_LINEAR_MIPMAP_LINEAR)
+        clampLinear(GL_LINEAR)
+        uploaded = true
+    }
+
+    /** Lets the film as decoded go from the GPU once it's developed, leaving a texel in its place. */
+    private fun unload() {
+        glBindTexture(GL_TEXTURE_2D, imageTex)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, null)
+        uploaded = false
     }
 
     private fun bake(slot: Slot) {
@@ -250,8 +269,6 @@ class LookRenderer : GLSurfaceView.Renderer {
         const val MIN_ZOOM = 1.27f
         const val MAX_ZOOM = 1.33f
 
-        // As much larger than 1080p as the furthest zoom, so there's still a texel for every screen pixel.
-        const val BAKE_WIDTH = 2688
         const val BAKE_HEIGHT = 1512
 
         const val VERTEX = """#version 300 es
