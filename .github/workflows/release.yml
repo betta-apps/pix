@@ -54,5 +54,11 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/ | tail -1)apksigner"
           cert="$("$apksigner" verify --print-certs "pix-$version.apk" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1)"
-          printf 'Pix %s for Android TV. Install it as the README describes.\n\nSigning certificate SHA-256: `%s`\n' "$version" "$cert" > notes.md
-          gh release create "$GITHUB_REF_NAME" "pix-$version.apk" --title "Pix $version" --notes-file notes.md
+          {
+            echo "**Pix: Screensaver for Plex**, for Android TV, the NVIDIA Shield and Google TV. Your Plex library as a slow, cinematic screensaver, with a film look and a guessing game."
+            echo
+            echo "Download \`pix-$version.apk\` below and install it as the [README](https://github.com/betta-apps/pix#install) describes, then choose **Pix for Plex** as your screensaver. More at [work.betta.io/apps/pix](https://work.betta.io/apps/pix/)."
+            echo
+            echo "Signing certificate SHA-256: \`$cert\`"
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" "pix-$version.apk" --title "Pix $version: Screensaver for Plex" --notes-file notes.md

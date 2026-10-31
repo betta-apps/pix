@@ -1,6 +1,6 @@
-<p align="center"><img src="docs/banner.png" alt="pix" width="480"></p>
+<p align="center"><img src="docs/banner.png" alt="Pix: Screensaver for Plex" width="480"></p>
 
-<p align="center"><strong>A Plex screensaver for Android TV, the NVIDIA Shield and Google TV.</strong><br>Your Plex library as a slow, cinematic screensaver, with a guessing game.</p>
+<p align="center"><strong>Pix: Screensaver for Plex on Android TV, the NVIDIA Shield and Google TV.</strong><br>Your Plex library as a slow, cinematic screensaver, with a guessing game.</p>
 
 <p align="center"><a href="../../releases/latest"><strong>Download</strong></a> · <a href="https://work.betta.io/apps/pix/">Website</a> · <a href="#install">Install</a> · <a href="#google-tv">Google TV</a></p>
 
