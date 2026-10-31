@@ -12,9 +12,9 @@ one is on screen it plays a small guessing game: halfway through you get the yea
 each word of the title is. Then the title appears.
 
 <table><tr>
-<td><img src="docs/still.jpg" alt="The still: a backdrop from The Long Walk with the film look" width="280"><br><sub>The still</sub></td>
-<td><img src="docs/guess.jpg" alt="The clue: She Said, with its year and a line for each word" width="280"><br><sub>The clue</sub></td>
-<td><img src="docs/title.jpg" alt="The title: When Marnie Was There" width="280"><br><sub>The title</sub></td>
+<td><img src="docs/still.jpg" alt="The still: Singin' in the Rain, with a line drawing in under it" width="280"><br><sub>1. The still</sub></td>
+<td><img src="docs/guess.jpg" alt="The clue: the year, 1952, and a line for each word of the title" width="280"><br><sub>2. The clue: the year, a line a word</sub></td>
+<td><img src="docs/title.jpg" alt="The title: Singin' in the Rain" width="280"><br><sub>3. The title</sub></td>
 </tr></table>
 
 ## What it does
