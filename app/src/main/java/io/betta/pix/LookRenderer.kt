@@ -5,6 +5,7 @@ import android.opengl.GLES30.*
 import android.opengl.GLSurfaceView
 import android.opengl.GLUtils
 import android.os.SystemClock
+import android.os.Trace
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import javax.microedition.khronos.egl.EGLConfig
@@ -54,6 +55,10 @@ class LookRenderer : GLSurfaceView.Renderer {
     private var back = Slot()
     private var viewWidth = 1
     private var viewHeight = 1
+    // The GPU's own timer, where it has one, for how long a bake takes it while a trace is being taken, one bake at a
+    // time: read once it's done, a frame or so later, as the "bake GPU us" counter. 0 on a GPU without it.
+    private var bakeTimer = 0
+    private var timing = false
 
     private val triangle = ByteBuffer.allocateDirect(6 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
         .apply { put(floatArrayOf(-1f, -1f, 3f, -1f, -1f, 3f)).position(0) }
@@ -75,6 +80,12 @@ class LookRenderer : GLSurfaceView.Renderer {
         val ids = IntArray(1)
         glGenTextures(1, ids, 0)
         imageTex = ids[0]
+        bakeTimer = 0
+        timing = false
+        if (glGetString(GL_EXTENSIONS)?.contains("GL_EXT_disjoint_timer_query") == true) {
+            glGenQueries(1, ids, 0)
+            bakeTimer = ids[0]
+        }
         front = slot()
         back = slot()
         // A new surface lost the films on the GPU; develop the current one again, without a fade.
@@ -105,7 +116,7 @@ class LookRenderer : GLSurfaceView.Renderer {
         pending?.let {
             pending = null
             current = it
-            upload(it)
+            traced("backdrop upload") { upload(it) }
             front = back.also { back = front }
             front.move = Move.random()
             front.moveSeconds = pendingMoveSeconds
@@ -115,8 +126,15 @@ class LookRenderer : GLSurfaceView.Renderer {
         }
         if (needsBake && current != null) {
             needsBake = false
-            bake(front)
+            val timed = bakeTimer != 0 && !timing && Trace.isEnabled()
+            if (timed) glBeginQuery(GL_TIME_ELAPSED_EXT, bakeTimer)
+            traced("backdrop bake") { bake(front) }
+            if (timed) {
+                glEndQuery(GL_TIME_ELAPSED_EXT)
+                timing = true
+            }
         }
+        if (timing) readBakeTimer()
         glViewport(0, 0, viewWidth, viewHeight)
         glClearColor(0f, 0f, 0f, 1f)
         glClear(GL_COLOR_BUFFER_BIT)
@@ -174,6 +192,18 @@ class LookRenderer : GLSurfaceView.Renderer {
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
     }
 
+    /** The last bake's time on the GPU, once it's there, unless the GPU's clock jumped meanwhile (it can, the extension warns). */
+    private fun readBakeTimer() {
+        val value = IntArray(1)
+        glGetQueryObjectuiv(bakeTimer, GL_QUERY_RESULT_AVAILABLE, value, 0)
+        if (value[0] == 0) return
+        timing = false
+        glGetIntegerv(GL_GPU_DISJOINT_EXT, value, 0)
+        if (value[0] != 0) return
+        glGetQueryObjectuiv(bakeTimer, GL_QUERY_RESULT, value, 0)
+        Trace.setCounter("bake GPU us", Integer.toUnsignedLong(value[0]) / 1000)
+    }
+
     private fun draw(program: Int) {
         val position = glGetAttribLocation(program, "p")
         glEnableVertexAttribArray(position)
@@ -211,6 +241,10 @@ class LookRenderer : GLSurfaceView.Renderer {
 
     private companion object {
         const val FADE_MILLIS = 3000L
+
+        // GL_EXT_disjoint_timer_query's, which GLES30 doesn't name.
+        const val GL_TIME_ELAPSED_EXT = 0x88BF
+        const val GL_GPU_DISJOINT_EXT = 0x8FBB
 
         // Barely changing: the zoom is there to leave room for the pan, which is the move you notice.
         const val MIN_ZOOM = 1.27f

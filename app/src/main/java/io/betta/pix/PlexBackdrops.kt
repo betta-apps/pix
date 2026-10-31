@@ -20,9 +20,9 @@ fun Plex.backdrops(cache: BackdropCache): List<Backdrops.Backdrop> {
         // The Plex app (2026.20) ignores plex://server links but opens its page for a watch.plex.tv one.
         lateinit var film: Backdrops.Backdrop
         film = Backdrops.Backdrop(movie.title, movie.year, movie.page) {
-            val bitmap = backdrop(server, movie)
+            val bitmap = traced("backdrop fetch") { backdrop(server, movie) }
             check(!hasBlackBars(bitmap.width, bitmap.height) { x, y -> luminance(bitmap.getPixel(x, y)) }) { "${movie.title} has black bars" }
-            cache.save(movie.page?.substringAfterLast('/') ?: movie.art, film, bitmap)
+            traced("backdrop cache") { cache.save(movie.page?.substringAfterLast('/') ?: movie.art, film, bitmap) }
             bitmap
         }
         film

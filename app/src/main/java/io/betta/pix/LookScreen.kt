@@ -122,7 +122,7 @@ class LookScreen(private val context: Context) {
         val side = CORNERS[corner++ % CORNERS.size]
         hideCaption()
         loader.execute {
-            val bitmap = runCatching { chosen.load() }.getOrNull()
+            val bitmap = runCatching { traced("backdrop load") { chosen.load() } }.getOrNull()
             val tint = bitmap?.let { tintOf(it, side) }
             view.post {
                 if (asked != loading) return@post
