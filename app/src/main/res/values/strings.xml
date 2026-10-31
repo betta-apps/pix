@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Pix</string>
+    <!-- In the TV's screen saver list, among its own: what it is, as Plex's guidelines allow ("X for Plex"). -->
+    <string name="dream_name">Pix for Plex</string>
+</resources>
