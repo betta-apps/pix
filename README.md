@@ -39,10 +39,10 @@ Plex app. Any other button closes it.
 - A Plex server you own, and the Plex account it's signed in to.
 
 > [!IMPORTANT]
-> **Google TV doesn't let you choose Pix for Plex in its settings.** That covers Chromecast with Google TV, the Google TV
-> Streamer and most TVs sold since about 2022. Google TV only lists its own screensavers, so on those you set Pix
-> from a computer with `adb` ([see below](#google-tv)). The Shield and other Android TV devices list Pix in their
-> settings like any other screensaver.
+> **Many Google TV devices don't list Pix for Plex in their settings.** Chromecast with Google TV, the Google TV
+> Streamer and many TVs sold since about 2022 show only Google's own screensavers. If yours doesn't list Pix, set it
+> once with `adb` ([see below](#google-tv)). The Shield and other Android TV devices list Pix in their settings like
+> any other screensaver.
 
 ## Install
 
