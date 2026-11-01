@@ -19,6 +19,9 @@ import kotlin.random.Random
 // screen pixel (BAKE_HEIGHT is its height).
 const val BAKE_WIDTH = 2688
 
+/** The rows, from and to, of [band] of [bands] across [height]: together they cover it, each row once. */
+fun bandRows(band: Int, bands: Int, height: Int): Pair<Int, Int> = height * band / bands to height * (band + 1) / bands
+
 /**
  * Develops each backdrop once into a texture (softness, halation, grain, warmth), then only pans across it, so
  * the grain stays fixed to the still and each frame costs a texture read or two. A new film fades in over the last.
@@ -61,8 +64,12 @@ class LookRenderer : GLSurfaceView.Renderer {
     private var back = Slot()
     private var viewWidth = 1
     private var viewHeight = 1
-    // The GPU's own timer, where it has one, for how long a bake takes it while a trace is being taken, one bake at a
-    // time: read once it's done, a frame or so later, as the "bake GPU us" counter. 0 on a GPU without it.
+    // The next band of the film in [front] to develop, one a frame; [BANDS] once it's done, -1 while it's to be uploaded.
+    private var band = BANDS
+    // The look a new film is developed in, fixed for all its bands: one chosen meanwhile is developed after, whole.
+    private var developing = look
+    // The GPU's own timer, where it has one, for how long a band of a bake takes it while a trace is being taken, one at
+    // a time: read once it's done, a frame or so later, as the "bake GPU us" counter. 0 on a GPU without it.
     private var bakeTimer = 0
     private var timing = false
 
@@ -123,38 +130,48 @@ class LookRenderer : GLSurfaceView.Renderer {
         pending?.let {
             pending = null
             current = it
-            traced("backdrop upload") { upload(it) }
-            front = back.also { back = front }
+            // The film showing stays in its slot; one still developing gives way to this one.
+            if (front.ready) front = back.also { back = front }
+            front.ready = false
             front.move = Move.random()
             front.moveSeconds = pendingMoveSeconds
-            front.shownAt = now
-            front.ready = true
-            needsBake = true
+            band = -1
+            needsBake = false
         }
         val film = current
-        if (needsBake && film != null) {
+        // A new film is uploaded in one frame and developed a band a frame after, so no frame takes the whole bake (about
+        // 60 ms of the Shield's GPU); the film before it moves on meanwhile, and the new one fades in once it's done.
+        if (film != null && band < 0) {
+            traced("backdrop upload") { upload(film) }
+            developing = look
+            band = 0
+        } else if (film != null && band < BANDS) {
+            timed { traced("backdrop bake") { bake(front, band, developing) } }
+            if (++band == BANDS) {
+                unload()
+                front.ready = true
+                front.shownAt = now
+            }
+        } else if (needsBake && film != null) {
+            // A new look for the film showing, chosen in Settings: all at once, as there's no fade to develop it behind.
             needsBake = false
             if (!uploaded) traced("backdrop upload") { upload(film) }
-            val timed = bakeTimer != 0 && !timing && Trace.isEnabled()
-            if (timed) glBeginQuery(GL_TIME_ELAPSED_EXT, bakeTimer)
-            traced("backdrop bake") { bake(front) }
-            if (timed) {
-                glEndQuery(GL_TIME_ELAPSED_EXT)
-                timing = true
-            }
+            val l = look
+            traced("backdrop bake") { for (b in 0 until BANDS) bake(front, b, l) }
             unload()
         }
         if (timing) readBakeTimer()
         glViewport(0, 0, viewWidth, viewHeight)
         glClearColor(0f, 0f, 0f, 1f)
         glClear(GL_COLOR_BUFFER_BIT)
-        if (!front.ready) return
+        if (!front.ready && !back.ready) return
 
-        val fade = ((now - front.shownAt) / FADE_MILLIS.toFloat()).coerceAtMost(1f)
         glUseProgram(showProgram)
         glUniform2f(glGetUniformLocation(showProgram, "uView"), viewWidth.toFloat(), viewHeight.toFloat())
         glUniform1f(glGetUniformLocation(showProgram, "uVig"), look.vignette)
         glUniform1f(glGetUniformLocation(showProgram, "uBright"), brightness)
+        if (!front.ready) return present(back, now, 1f)
+        val fade = ((now - front.shownAt) / FADE_MILLIS.toFloat()).coerceAtMost(1f)
         if (fade < 1f && back.ready) present(back, now, 1f)
         glEnable(GL_BLEND)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
@@ -193,10 +210,23 @@ class LookRenderer : GLSurfaceView.Renderer {
         uploaded = false
     }
 
-    private fun bake(slot: Slot) {
-        val l = look
+    private fun timed(block: () -> Unit) {
+        val timed = bakeTimer != 0 && !timing && Trace.isEnabled()
+        if (timed) glBeginQuery(GL_TIME_ELAPSED_EXT, bakeTimer)
+        block()
+        if (timed) {
+            glEndQuery(GL_TIME_ELAPSED_EXT)
+            timing = true
+        }
+    }
+
+    /** Develops [band] of the film into [slot] in look [l]: the whole film drawn, only those rows kept. */
+    private fun bake(slot: Slot, band: Int, l: FilmLook) {
+        val (from, to) = bandRows(band, BANDS, BAKE_HEIGHT)
         glBindFramebuffer(GL_FRAMEBUFFER, slot.fbo)
         glViewport(0, 0, BAKE_WIDTH, BAKE_HEIGHT)
+        glEnable(GL_SCISSOR_TEST)
+        glScissor(0, from, BAKE_WIDTH, to - from)
         glUseProgram(bakeProgram)
         glActiveTexture(GL_TEXTURE0)
         glBindTexture(GL_TEXTURE_2D, imageTex)
@@ -208,6 +238,7 @@ class LookRenderer : GLSurfaceView.Renderer {
         glUniform1f(glGetUniformLocation(bakeProgram, "uHal"), l.halation)
         glUniform1f(glGetUniformLocation(bakeProgram, "uWarm"), l.warmth)
         draw(bakeProgram)
+        glDisable(GL_SCISSOR_TEST)
         glBindFramebuffer(GL_FRAMEBUFFER, 0)
     }
 
@@ -260,6 +291,8 @@ class LookRenderer : GLSurfaceView.Renderer {
 
     private companion object {
         const val FADE_MILLIS = 3000L
+        // Six bands of a 60 ms bake leave each frame room to show the film before it.
+        const val BANDS = 6
 
         // GL_EXT_disjoint_timer_query's, which GLES30 doesn't name.
         const val GL_TIME_ELAPSED_EXT = 0x88BF
