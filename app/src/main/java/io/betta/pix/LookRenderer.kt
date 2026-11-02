@@ -53,10 +53,15 @@ class LookRenderer : GLSurfaceView.Renderer {
     @Volatile private var needsBake = false
     @Volatile var brightness = 1f
 
+    // The film as decoded (about 16 MB), kept only until it's developed: the screensaver's look never changes after it
+    // starts, so nothing develops it again but a lost surface, and then [lost] has it loaded afresh.
     private var current: Bitmap? = null
+    private var developed = false
+    /** Called (on the GL thread) when a lost surface took a film that's no longer kept: show it again. */
+    @Volatile var lost: (() -> Unit)? = null
     private var bakeProgram = 0
     private var showProgram = 0
-    // The film as decoded, on the GPU only while it's developed; a new look uploads it again from [current].
+    // The film as decoded, on the GPU only while it's developed.
     private var imageTex = 0
     private var uploaded = false
     // The film fading in and the one it replaces, which keeps moving underneath until the fade is done.
@@ -102,8 +107,9 @@ class LookRenderer : GLSurfaceView.Renderer {
         }
         front = slot()
         back = slot()
-        // A new surface lost the films on the GPU; develop the current one again, without a fade.
+        // A new surface lost the films on the GPU; develop the current one again, without a fade, or have it loaded again.
         current?.let { if (pending == null) pending = it }
+        if (current == null && pending == null && developed) lost?.invoke()
     }
 
     private fun slot() = Slot().apply {
@@ -151,6 +157,8 @@ class LookRenderer : GLSurfaceView.Renderer {
                 unload()
                 front.ready = true
                 front.shownAt = now
+                current = null
+                developed = true
             }
         } else if (needsBake && film != null) {
             // A new look for the film showing, chosen in Settings: all at once, as there's no fade to develop it behind.

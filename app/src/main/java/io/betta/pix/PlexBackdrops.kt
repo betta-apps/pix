@@ -11,12 +11,12 @@ import kotlin.random.Random
  * reached, the films in [cache] instead.
  */
 fun Plex.backdrops(cache: BackdropCache): List<Backdrops.Backdrop> {
-    val server = try {
-        server()
+    val (server, movies) = try {
+        withServer { it to movies(it) }
     } catch (e: Exception) {
         return cache.all().ifEmpty { throw e }
     }
-    return weightedOrder(movies(server)).map { movie ->
+    return weightedOrder(movies).map { movie ->
         // The Plex app (2026.20) ignores plex://server links but opens its page for a watch.plex.tv one.
         lateinit var film: Backdrops.Backdrop
         film = Backdrops.Backdrop(movie.title, movie.year, movie.page) {

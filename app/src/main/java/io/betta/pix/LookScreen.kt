@@ -36,6 +36,8 @@ class LookScreen(private val context: Context) {
     private var corner = 0
     private var failures = 0
     private var shown: Backdrops.Backdrop? = null
+    // The request ([loading]) the film showing came from: a recovery only reloads it if nothing newer's been asked for.
+    private var shownAsk = 0
     private val captionAlpha get() = brightness
     // Signed out: Plex's QR sign-in, dimmed with the rest but never too far to scan.
     private var signIn: SignInCard? = null
@@ -110,13 +112,19 @@ class LookScreen(private val context: Context) {
     init {
         renderer.setLook(FilmLook.presets[look])
         renderer.brightness = brightness
+        // The renderer lets each film go once it's developed; a lost surface has the one showing loaded again.
+        renderer.lost = { view.post { if (shownAsk == loading) shown?.let(::show) } }
     }
 
     fun showBackdrop(index: Int) {
         // Closed: a film that loaded just before, or its timer, can still ask for the next one.
         if (loader.isShutdown) return
         backdrop = Math.floorMod(index, backdrops.size)
-        val chosen = backdrops[backdrop]
+        show(backdrops[backdrop])
+    }
+
+    private fun show(chosen: Backdrops.Backdrop) {
+        if (loader.isShutdown) return
         // Only the latest film asked for may go on screen; one that loads late is dropped.
         val asked = ++loading
         val side = CORNERS[corner++ % CORNERS.size]
@@ -137,6 +145,7 @@ class LookScreen(private val context: Context) {
                 backdrops.indexOf(chosen).takeIf { it >= 0 }?.let { backdrop = it }
                 renderer.show(bitmap, ScreensaverSettings(context).filmMillis)
                 shown = chosen
+                shownAsk = asked
                 val timings = ScreensaverSettings(context)
                 view.postDelayed(next, timings.filmMillis)
                 // Signed out there's only the app's own still (or a painting) to show, so nothing to guess.

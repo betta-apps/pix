@@ -35,7 +35,32 @@ class Plex(context: Context) {
 
     val signedIn get() = prefs.getString("token", null) != null
 
-    fun signOut() = prefs.edit().remove("token").remove("server").apply()
+    fun signOut() {
+        prefs.edit().remove("token").remove("server").apply()
+        found = null
+    }
+
+    /**
+     * [block] run against your server: the one already found while you've been signed in, until a request to it fails,
+     * and only then looked for again ([server]: plex.tv's list, then which address answers) and [block] tried once more.
+     */
+    fun <T> withServer(block: (Server) -> T): T {
+        val token = prefs.getString("token", null)
+        found?.takeIf { it.first == token }?.second?.let { kept ->
+            try {
+                return block(kept)
+            } catch (e: Exception) {
+                // Gone, moved or no longer answering: looked for afresh below.
+            }
+        }
+        return block(server())
+    }
+
+    /**
+     * Your server, checked to answer before a change is sent to it: a change goes once, as one that timed out may still
+     * have been made, so it's never run again by [withServer]'s retry.
+     */
+    fun liveServer(): Server = withServer { server -> server.also { check(reachable(it.uri, it.token)) { "Your Plex server isn't answering" } } }
 
     fun requestPin(): Pin {
         val pin = JSONObject(fetch("https://plex.tv/api/v2/pins?strong=true", method = "POST"))
@@ -77,7 +102,7 @@ class Plex(context: Context) {
                 ?: firstAnswering(remote) { reachable(it, serverToken) }
             if (uri != null) {
                 if (uri != last) prefs.edit().putString("server", uri).apply()
-                return Server(uri, serverToken, resource.getString("clientIdentifier"))
+                return Server(uri, serverToken, resource.getString("clientIdentifier")).also { found = token to it }
             }
         }
         error("Couldn't reach your Plex server")
@@ -174,6 +199,9 @@ class Plex(context: Context) {
     companion object {
         /** The library types it reads: films and TV shows. */
         val KINDS = setOf("movie", "show")
+
+        // The server last found, and for which sign-in: one for the whole app, home screen and screensaver alike.
+        @Volatile private var found: Pair<String, Server>? = null
     }
 }
 
