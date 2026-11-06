@@ -35,8 +35,26 @@ class Plex(context: Context) {
 
     val signedIn get() = prefs.getString("token", null) != null
 
+    /** Your own sign-in's token, whoever is being stood in for. */
+    internal val ownToken: String? get() = prefs.getString("token", null)
+
+    /**
+     * Another user of your Plex Home to act as, by their token ([standIn]), or null for yourself: every request then
+     * goes as them, to your server shared with them. Kept like your own token, and set and cleared by the home screen.
+     */
+    fun standIn(token: String?) {
+        prefs.edit().apply { if (token == null) remove("standIn") else putString("standIn", token) }.commit()
+        found = null
+    }
+
+    /** The token stood in for ([standIn]), or null while you're yourself. */
+    internal val standingInAs: String? get() = prefs.getString("standIn", null)
+
+    // Whose requests these are: the stand-in's while there is one, else yours.
+    private val token: String? get() = prefs.getString("standIn", null) ?: prefs.getString("token", null)
+
     fun signOut() {
-        prefs.edit().remove("token").remove("server").apply()
+        prefs.edit().remove("token").remove("standIn").remove("server").apply()
         found = null
     }
 
@@ -45,7 +63,7 @@ class Plex(context: Context) {
      * and only then looked for again ([server]: plex.tv's list, then which address answers) and [block] tried once more.
      */
     fun <T> withServer(block: (Server) -> T): T {
-        val token = prefs.getString("token", null)
+        val token = token
         found?.takeIf { it.first == token }?.second?.let { kept ->
             try {
                 return block(kept)
@@ -85,11 +103,15 @@ class Plex(context: Context) {
      * addresses are tried all at once rather than waiting on each in turn.
      */
     fun server(): Server {
-        val token = checkNotNull(prefs.getString("token", null)) { "Not signed in to Plex" }
+        val token = checkNotNull(token) { "Not signed in to Plex" }
+        // Standing in, your server is theirs only as shared: it's the one found as yourself, by its identifier.
+        val standingIn = prefs.getString("standIn", null) != null
+        val yours = prefs.getString("machine", null)
         val resources = JSONArray(fetch("https://plex.tv/api/v2/resources?includeHttps=1", token))
         for (i in 0 until resources.length()) {
             val resource = resources.getJSONObject(i)
-            if ("server" !in resource.optString("provides") || !resource.optBoolean("owned")) continue
+            if ("server" !in resource.optString("provides")) continue
+            if (!isYourServer(standingIn, yours, resource.optString("clientIdentifier"), resource.optBoolean("owned"))) continue
             val serverToken = resource.optString("accessToken", token)
             val connections = resource.getJSONArray("connections")
             val (local, remote) = (0 until connections.length()).map { connections.getJSONObject(it) }
@@ -102,6 +124,7 @@ class Plex(context: Context) {
                 ?: firstAnswering(remote) { reachable(it, serverToken) }
             if (uri != null) {
                 if (uri != last) prefs.edit().putString("server", uri).apply()
+                if (!standingIn) prefs.edit().putString("machine", resource.getString("clientIdentifier")).apply()
                 return Server(uri, serverToken, resource.getString("clientIdentifier")).also { found = token to it }
             }
         }
@@ -173,8 +196,8 @@ class Plex(context: Context) {
         try { connection.responseCode == 200 } finally { connection.disconnect() }
     }.getOrDefault(false)
 
-    internal fun fetch(url: String, token: String? = null, method: String = "GET"): String {
-        val connection = open(url, token, method = method)
+    internal fun fetch(url: String, token: String? = null, method: String = "GET", accept: String = "application/json"): String {
+        val connection = open(url, token, method = method, accept = accept)
         try {
             check(connection.responseCode in 200..299) { "${URL(url).host} answered ${connection.responseCode}" }
             return connection.inputStream.bufferedReader().use { it.readText() }
@@ -183,12 +206,14 @@ class Plex(context: Context) {
         }
     }
 
-    private fun open(url: String, token: String?, method: String = "GET", timeout: Int = 10_000) =
+    private fun open(url: String, token: String?, method: String = "GET", timeout: Int = 10_000, accept: String = "application/json") =
         (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method
+            // A redirect would carry the token to wherever it points: it fails instead.
+            instanceFollowRedirects = false
             connectTimeout = timeout
             readTimeout = 20_000
-            setRequestProperty("Accept", "application/json")
+            setRequestProperty("Accept", accept)
             setRequestProperty("X-Plex-Product", product)
             setRequestProperty("X-Plex-Version", "0.1.0")
             setRequestProperty("X-Plex-Device-Name", product)
@@ -204,6 +229,13 @@ class Plex(context: Context) {
         @Volatile private var found: Pair<String, Server>? = null
     }
 }
+
+/**
+ * Whether a server from plex.tv's list is yours: as yourself, one you own; standing in for someone, only the one found
+ * as yourself ([yours], its identifier), and none until that's known.
+ */
+fun isYourServer(standingIn: Boolean, yours: String?, id: String, owned: Boolean): Boolean =
+    if (standingIn) yours != null && id == yours else owned
 
 /** The first of [candidates] that [answers], asking them all at once so one that hangs holds up none of the others. */
 fun firstAnswering(candidates: List<String>, answers: (String) -> Boolean): String? {

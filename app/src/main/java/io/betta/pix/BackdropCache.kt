@@ -8,10 +8,11 @@ import java.io.File
 
 /**
  * The last [KEEP] films shown, kept on the Shield so the screensaver still has your films when Plex can't be
- * reached. Each is the backdrop as Plex sent it, plus its title, year and Plex link.
+ * reached. Each is the backdrop as Plex sent it, plus its title, year and Plex link. Kept for whoever Plex is asked as
+ * ([Plex.standIn]): yours and a stand-in's apart.
  */
 class BackdropCache(context: Context) {
-    private val dir = File(context.filesDir, "backdrops").apply { mkdirs() }
+    private val dir = File(context.filesDir, backdropFolder(Plex(context).standingInAs != null)).apply { mkdirs() }
 
     fun save(name: String, backdrop: Backdrops.Backdrop, bitmap: Bitmap) {
         val safe = name.replace(Regex("[^A-Za-z0-9-]"), "_")
@@ -42,6 +43,14 @@ class BackdropCache(context: Context) {
         const val KEEP = 40
         const val KEEP_WIDTH = 2688
     }
+}
+
+/** Where films are kept: yours, or a stand-in's apart, so neither's show for the other. */
+fun backdropFolder(standingIn: Boolean): String = if (standingIn) "backdrops-stand-in" else "backdrops"
+
+/** A stand-in's kept films let go, once they're no longer stood in for. */
+fun forgetStandInBackdrops(context: Context) {
+    File(context.filesDir, backdropFolder(standingIn = true)).deleteRecursively()
 }
 
 /**
